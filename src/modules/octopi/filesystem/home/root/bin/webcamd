@@ -14,6 +14,7 @@
 MJPGSTREAMER_HOME=/home/pi/mjpg-streamer
 MJPGSTREAMER_INPUT_USB="input_uvc.so"
 MJPGSTREAMER_INPUT_RASPICAM="input_raspicam.so"
+MJPGSTREAMER_INPUT_PROXY="input_http.so"
 
 brokenfps_usb_devices=("046d:082b" "1908:2310" "0458:708c" "0458:6006" "1e4e:0102" "0471:0311" "038f:6001" "046d:0804" "046d:0825" "046d:0994" "0ac8:3450")
 
@@ -33,6 +34,7 @@ array_camera=()
 array_camera_usb_options=()
 array_camera_usb_device=()
 array_camera_raspi_options=()
+array_camera_proxy_options=()
 array_camera_http_webroot=()
 array_camera_http_options=()
 array_additional_brokenfps_usb_devices=()
@@ -45,6 +47,7 @@ for cfg_file in ${cfg_files[@]}; do
   camera="auto"
   camera_usb_options="-r 640x480 -f 10"
   camera_raspi_options="-fps 10"
+  camera_proxy_options=""
   camera_http_webroot="./www-octopi"
   camera_http_options="-n --listen 127.0.0.1"
   additional_brokenfps_usb_devices=()
@@ -71,6 +74,7 @@ for cfg_file in ${cfg_files[@]}; do
   echo "camera:        $camera"
   echo "usb options:   $camera_usb_options"
   echo "raspi options: $camera_raspi_options"
+  echo "proxy options: $camera_proxy_options"
   echo "http options:  -w $camera_http_webroot $camera_http_options"
   echo ""
   echo "Explicitly USB device: $extracted_device"
@@ -82,6 +86,7 @@ for cfg_file in ${cfg_files[@]}; do
   array_camera_usb_options+=("$usb_options")
   array_camera_usb_device+=("$extracted_device")
   array_camera_raspi_options+=("$camera_raspi_options")
+  array_camera_proxy_options+=("$camera_proxy_options")
   array_camera_http_webroot+=("$camera_http_webroot")
   array_camera_http_options+=("$camera_http_options")
   array_camera_brokenfps_usb_devices+=("${brokenfps_usb_devices[*]} ${additional_brokenfps_usb_devices[*]}")
@@ -200,6 +205,12 @@ function startUsb {
     runMjpgStreamer "$MJPGSTREAMER_INPUT_USB $options"
 }
 
+# starts up the HTTP proxy camera
+function startProxy {
+  logger -s "Starting HTTP Proxy camera"
+  runMjpgStreamer "$MJPGSTREAMER_INPUT_PROXY $camera_proxy_options"
+}
+
 # make sure our cleanup function gets called when we receive SIGINT, SIGTERM
 trap "cleanup" SIGINT SIGTERM
 # say goodbye when we EXIT
@@ -223,7 +234,7 @@ while true; do
   echo "Found video devices:"
   printf '%s\n' "${video_devices[@]}"
 
-  for scan_mode in "usb" "usb-auto" "raspi" "auto"; do
+  for scan_mode in "usb" "usb-auto" "raspi" "proxy" "auto"; do
     camera=$scan_mode
     if [[ "usb-auto" == "$scan_mode" ]]; then
       camera="usb"
@@ -234,6 +245,7 @@ while true; do
         usb_options="${array_camera_usb_options[${i}]}"
         camera_usb_device="${array_camera_usb_device[${i}]}"
         camera_raspi_options="${array_camera_raspi_options[${i}]}"
+        camera_proxy_options="${array_camera_proxy_options[${i}]}"
         camera_http_webroot="${array_camera_http_webroot[${i}]}"
         camera_http_options="${array_camera_http_options[${i}]}"
         brokenfps_usb_devices="${array_camera_brokenfps_usb_devices[${i}]}"
@@ -270,6 +282,10 @@ while true; do
           if [[ -n ${array_camera_device[${i}]} ]]; then
             continue
           fi
+        fi
+        if [[ "proxy" == ${scan_mode} ]]; then
+          array_camera_device[${i}]="proxy"
+          startProxy
         fi
         if [[ "raspi" == ${scan_mode} ]] || [[ "auto" == ${scan_mode} ]]; then
           video_device="raspi"
